@@ -904,19 +904,46 @@ int
 window_unzoom(struct window *w, int notify)
 {
 	struct window_pane	*wp;
+	struct layout_cell	*lc, *lcparent;
 
 	if (!(w->flags & WINDOW_ZOOMED))
 		return (-1);
 
 	w->flags &= ~WINDOW_ZOOMED;
+
+	/*
+	 * A floating pane created while the window was zoomed has its only
+	 * cell in the zoomed layout (saved_layout_cell points to the same
+	 * cell - see spawn_pane). Detach such cells so they are not freed
+	 * with the zoomed layout and can be moved to the restored layout.
+	 */
+	TAILQ_FOREACH(wp, &w->panes, entry) {
+		lc = wp->layout_cell;
+		if (lc != NULL && lc == wp->saved_layout_cell) {
+			TAILQ_REMOVE(&lc->parent->cells, lc, entry);
+			lc->parent = NULL;
+		}
+	}
+
 	layout_free(w, 0);
 	w->layout_root = w->saved_layout_root;
 	w->saved_layout_root = NULL;
 
 	TAILQ_FOREACH(wp, &w->panes, entry) {
-		wp->layout_cell = wp->saved_layout_cell;
+		lc = wp->layout_cell = wp->saved_layout_cell;
 		wp->saved_layout_cell = NULL;
 		wp->flags &= ~PANE_ZOOMED;
+
+		/* Reattach any detached floating cell to the restored root. */
+		if (lc == NULL || lc->parent != NULL || lc == w->layout_root)
+			continue;
+		if (w->layout_root->type == LAYOUT_WINDOWPANE) {
+			lcparent = layout_replace_with_node(w, w->layout_root,
+			    LAYOUT_TOPBOTTOM);
+		} else
+			lcparent = w->layout_root;
+		lc->parent = lcparent;
+		TAILQ_INSERT_TAIL(&lcparent->cells, lc, entry);
 	}
 	layout_fix_panes(w, NULL);
 

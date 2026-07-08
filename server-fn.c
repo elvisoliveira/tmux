@@ -402,7 +402,12 @@ server_destroy_pane(struct window_pane *wp, int notify)
 	if (notify)
 		server_fire_pane_exit("pane-exited", wp);
 
-	server_unzoom_window(w);
+	/*
+	 * A floating pane is an overlay, not part of the tiled layout, so closing
+	 * one should not tear down a zoom of the tiled panes underneath it.
+	 */
+	if (!window_pane_is_floating(wp))
+		server_unzoom_window(w);
 	server_client_remove_pane(wp);
 	layout_close_pane(wp);
 	window_remove_pane(w, wp);

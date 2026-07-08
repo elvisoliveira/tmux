@@ -336,8 +336,10 @@ spawn_pane(struct spawn_context *sc, char **cause)
 			new_wp->layout_cell->flags |= LAYOUT_CELL_FLOATING;
 
 		/*
-		 * If window currently zoomed, window_set_active_pane calls
-		 * window_unzoom which it copies back the saved_layout_cell.
+		 * If the window is zoomed, this cell is in the temporary
+		 * zoomed layout. Point saved_layout_cell at the same cell so
+		 * window_unzoom knows to move it into the restored layout
+		 * rather than freeing it with the zoomed layout.
 		 */
 		if (w->flags & WINDOW_ZOOMED)
 			new_wp->saved_layout_cell = new_wp->layout_cell;
